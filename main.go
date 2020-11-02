@@ -37,6 +37,7 @@ func (c *Config) run() error {
     if err != nil {
         return err
     }
+
     // Check if the storage.json file exists.
     err = pathExists(c.StoragePath + "/storage.json")
     if err != nil {
@@ -70,12 +71,55 @@ func (c *Config) run() error {
         if err != nil {
             return err
         }
+    case "new":
+        var newProfileName string
+        if c.Argument == " " || c.Argument == "-" || c.Argument == "storage" || c.Argument == "archive" {
+            newProfileName = ""
+        } else {
+            newProfileName = c.Argument
+        }
+        err = newProfile(c.StoragePath, c.ArchivePath, newProfileName)
+        if err != nil {
+            return err
+        }
     case "help":
-        fmt.Printf("Usage: tbm <method> <arg>\n\nMethod(s):\n - switch: Switch/Change to another profile.\n - rename: Rename the current profile.\n - help:   This message.\n")
+        printHelp()
     default:
-        return fmt.Errorf("Defined method (%s) is not registered and does not exist.\n", c.Method)
+        return fmt.Errorf("Defined method (%s) is not does not exist, how did you do that?\n", c.Method)
+    }
+    return nil
+}
+
+// Create a new profile.
+func newProfile(storage, archive, profileName string) error {
+    // Check if a profileName is provided or not.
+    // When no name is provided, the new profile will be new<id>.
+    // <id> will be a sequential number.
+    // eg. if new exists, new1 will be created and so on.
+    if profileName == "" {
+        var id int
+        for {
+            storErr := pathExists(storage + "/new" + string(id) + ".json")
+            archErr := pathExists(archive + "/new" + string(id) + ".json")
+            if storErr == nil && archErr == nil {
+                profileName = "new" + string(id) + ".json"
+                break
+            }
+            id++
+        }
+    } else {
+        profileName = profileName + ".json"
     }
 
+    // Write the profiles
+    err := writeProfile(storage + "/" + profileName, "{}")   
+    if err != nil {
+        return err
+    }
+    err = writeProfile(archive + "/" + profileName, "{}")   
+    if err != nil {
+        return err
+    }
     return nil
 }
 
@@ -128,7 +172,6 @@ func switchProfile(storage, archive, profile, profilePath, arg string) error {
             return fmt.Errorf("An error occured while changing %s to storage.json, error: %s\n", argJson, err)
         }
     }
-
     // Update the TBMProfile
     err = writeProfile(profilePath, arg)
     if err != nil {
@@ -151,7 +194,6 @@ func writeProfile(path, data string) error {
     if err != nil {
         return fmt.Errorf("Something went wrong while writing (%s) to file (%s), error: %s\n", data, path, err)
     }
-
     return nil
 }
 
@@ -197,34 +239,35 @@ func pathExists(path string) error {
 
 // Build/construct the configuration.
 func constructor() (Config, error) {
+    var method string
+
     // Get information about the current user.
     user, err := user.Current()
     if err != nil {
         return Config{}, fmt.Errorf("Could not get current user information, error: %s\n", err)
     }
-
     // Get arguments without the program name [1:]
     cmd_args := os.Args[1:]
     if len(cmd_args) <= 0 {
-       return Config{}, fmt.Errorf("No paramaters specified!\n") 
+       return Config{}, fmt.Errorf("No paramaters specified!\n\nTry 'tbm help' for more information.\n") 
     }
-    method := ""
 
     // Make sure a valid method is provided.
     // This can be extended further on, define a method here and in the run() function.
     switch strings.ToLower(cmd_args[0]) {
-    case "switch":
+    case "switch", "-s", "--switch":
         method = "switch"
-    case "rename":
+    case "rename", "-r", "--rename":
         method = "rename"
-    case "help":
+    case "new", "-n", "--new":
+        method = "new"
+    case "help", "-h", "--help":
         method = "help"
         cmd_args = append(cmd_args, "-") 
     default:
         // if no method was provided, exit the program.
-        return Config{}, fmt.Errorf("Method not known, try 'tbm help' for more information.\n")
+        return Config{}, fmt.Errorf("Method not known\n\nTry 'tbm help' for more information.\n")
     }
-
     dotTaskbook := user.HomeDir + "/.taskbook"
 
     // Define basic information for the system.
@@ -239,8 +282,27 @@ func constructor() (Config, error) {
         method,                         // Method
         cmd_args[1],                    // Argument
     }
-
     return config, nil 
+}
+
+func printHelp() {
+    // the format looks like shit but hey, it works ¯\_(ツ)_/¯
+        fmt.Printf(`
+tbm is a little helper tool that extends the functionality of taskbook.
+Plese note, you always need to provide a method but not always args.
+If something is optional, it's surrounded with '< >'. 
+
+Usage: tbm method <ars>
+
+Method(s):
+ - new:     Create a new profile.
+             > tbm new <new-default>
+ - rename:  Rename the current profile.
+             > tbm rename default
+ - switch:  Switch/Change to another profile.
+             > tbm switch private
+ - help:    This message.
+`)
 }
 
 func main() {
@@ -250,13 +312,11 @@ func main() {
         fmt.Printf("An error occured while constructing\nError: %s\n", err)
         os.Exit(1)
     }
-
     err = config.run()
     if err != nil {
         fmt.Printf("Something went wrong while preparing\nError: %s\n", err)
         os.Exit(1)
     }
-
     // if the DEBUG file exists, make a config dump
     err = pathExists("./DEBUG")
     if err == nil {

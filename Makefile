@@ -1,6 +1,9 @@
 build:
 	go build -o bin/tbm main.go
 
+run:
+	go run main.go --help
+
 compile:
 	# FreeBDS
 	GOOS=freebsd GOARCH=amd64 go build -o bin/tbm-freebsd-amd64 main.go
