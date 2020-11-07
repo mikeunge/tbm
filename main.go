@@ -1,5 +1,6 @@
 package main 
 
+
 import (
     "fmt"
     "os"
@@ -19,6 +20,7 @@ type Config struct {
     Method              string      // method to call (eg. switch)
     Argument            string      // Passed argument
 }
+
 
 // Execute the program, make sure everything is setup correctly.
 func (c *Config) run() error {
@@ -82,6 +84,23 @@ func (c *Config) run() error {
         if err != nil {
             return err
         }
+    case "profile":
+        err = loadProfile(c)
+        if err != nil {
+            return err
+        }
+        // return the profile name.
+        fmt.Printf("Current profile: %s", c.TaskbookProfile)
+    case "all-profiles":
+        files, err := ioutil.ReadDir(c.StoragePath)
+        if err != nil {
+            return err
+        }
+
+        fmt.Println("Available profiles:\n")
+        for _, f := range files {
+            fmt.Printf("- %s\n", f.Name())
+        }
     case "help":
         printHelp()
     default:
@@ -89,6 +108,7 @@ func (c *Config) run() error {
     }
     return nil
 }
+
 
 // Create a new profile.
 func newProfile(storage, archive, profileName string) error {
@@ -122,6 +142,7 @@ func newProfile(storage, archive, profileName string) error {
     }
     return nil
 }
+
 
 // Switch to another profile.
 func switchProfile(storage, archive, profile, profilePath, arg string) error {
@@ -181,6 +202,7 @@ func switchProfile(storage, archive, profile, profilePath, arg string) error {
     return nil
 }
 
+
 // Creates/Writes profile (string) to file.
 func writeProfile(path, data string) error {
     file, err := os.Create(path)
@@ -196,6 +218,7 @@ func writeProfile(path, data string) error {
     }
     return nil
 }
+
 
 // Load the currently *active* profile.
 func loadProfile(c *Config) error {
@@ -229,6 +252,7 @@ func loadProfile(c *Config) error {
     return nil 
 }
 
+
 // Check if the given path exists, else, return error.
 func pathExists(path string) error {
     if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -236,6 +260,7 @@ func pathExists(path string) error {
     }
     return nil
 }
+
 
 // Build/construct the configuration.
 func constructor() (Config, error) {
@@ -261,6 +286,12 @@ func constructor() (Config, error) {
         method = "rename"
     case "new", "-n", "--new":
         method = "new"
+    case "profile", "-p", "--profile":
+        method = "profile"
+        cmd_args = append(cmd_args, "-")
+    case "all-profiles", "-a", "--all-profiles":
+        method = "all-profiles"
+        cmd_args = append(cmd_args, "-")
     case "help", "-h", "--help":
         method = "help"
         cmd_args = append(cmd_args, "-") 
@@ -292,16 +323,21 @@ tbm is a little helper tool that extends the functionality of taskbook.
 Plese note, you always need to provide a method but not always args.
 If something is optional, it's surrounded with '< >'. 
 
-Usage: tbm method <ars>
+Usage: tbm method <args>
 
 Method(s):
- - new:     Create a new profile.
-             > tbm new <new-default>
- - rename:  Rename the current profile.
-             > tbm rename default
- - switch:  Switch/Change to another profile.
-             > tbm switch private
- - help:    This message.
+ - switch:          Switch/Change to another profile.
+                     > tbm -s private / tbm switch private
+ - rename:          Rename the current profile.
+                     > tbm -r default / tbm rename default
+ - new:             Create a new profile.
+                     > tbm -n <new-defaul> / tbm new <new-default>
+ - profile:         Shows the current profile.
+                     > tbm -p / tbm profile
+ - all-profiles:    Get ALL the available profiles.
+                     > tbm -a / tbm all-profiles
+ - help:            This message.
+                     > tbm -h / tbm help
 `)
 }
 
